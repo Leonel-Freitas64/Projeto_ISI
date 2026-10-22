@@ -1,0 +1,644 @@
+[
+    {
+        "id": "b2452d0af62d7491",
+        "type": "tab",
+        "label": "Flow 2",
+        "disabled": false,
+        "info": "",
+        "env": []
+    },
+    {
+        "id": "e2abf7f90db2ae9c",
+        "type": "mysql",
+        "z": "b2452d0af62d7491",
+        "mydb": "mysql_config",
+        "name": "",
+        "x": 680,
+        "y": 340,
+        "wires": [
+            [
+                "133532b146da3f71"
+            ]
+        ]
+    },
+    {
+        "id": "6c5835d151b09d82",
+        "type": "inject",
+        "z": "b2452d0af62d7491",
+        "name": "",
+        "props": [
+            {
+                "p": "payload"
+            },
+            {
+                "p": "topic",
+                "vt": "str"
+            }
+        ],
+        "repeat": "",
+        "crontab": "",
+        "once": true,
+        "onceDelay": 0.1,
+        "topic": "",
+        "payload": "",
+        "payloadType": "date",
+        "x": 390,
+        "y": 340,
+        "wires": [
+            [
+                "6bcbc7a3323d39aa"
+            ]
+        ]
+    },
+    {
+        "id": "133532b146da3f71",
+        "type": "function",
+        "z": "b2452d0af62d7491",
+        "name": "Nao repetir dados",
+        "func": "const rows = msg.payload;\n\nif (!Array.isArray(rows)) {\n    node.error(\"A consulta MySQL não devolveu um array.\", msg);\n    return null;\n}\n\n// Substitui os dados anteriores pelos novos\nflow.set(\"imobRows\", rows);\n\nmsg.payload = rows;\nreturn msg;",
+        "outputs": 1,
+        "timeout": 0,
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [],
+        "x": 930,
+        "y": 300,
+        "wires": [
+            [
+                "a1c38f1a549fe227"
+            ]
+        ]
+    },
+    {
+        "id": "6bcbc7a3323d39aa",
+        "type": "function",
+        "z": "b2452d0af62d7491",
+        "name": "Dados para bd",
+        "func": "msg.topic = \"SELECT * FROM analise_imobiliaria;\";\nreturn msg;",
+        "outputs": 1,
+        "timeout": 0,
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [],
+        "x": 520,
+        "y": 260,
+        "wires": [
+            [
+                "e2abf7f90db2ae9c"
+            ]
+        ]
+    },
+    {
+        "id": "a1c38f1a549fe227",
+        "type": "function",
+        "z": "b2452d0af62d7491",
+        "name": "configurar concelhos",
+        "func": "const rows = msg.payload;\n\nif (!Array.isArray(rows)) {\n    node.error(\"A consulta MySQL não devolveu um array.\", msg);\n    return null;\n}\n\nflow.set(\"imobRows\", rows);\n\nreturn {\n    topic: \"carregar_concelhos\",\n    payload: rows\n};",
+        "outputs": 1,
+        "timeout": 0,
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [],
+        "x": 1060,
+        "y": 240,
+        "wires": [
+            [
+                "1233937cae79539e"
+            ]
+        ]
+    },
+    {
+        "id": "1233937cae79539e",
+        "type": "ui-template",
+        "z": "b2452d0af62d7491",
+        "group": "758da356cb5bc739",
+        "page": "",
+        "ui": "",
+        "name": "Selecionador de concelhos",
+        "order": 1,
+        "width": "8",
+        "height": "9",
+        "head": "",
+        "format": "<template>\n  <div class=\"selector\">\n    <div class=\"heading\">\n      <div class=\"heading-text\">\n        <h3>Concelhos</h3>\n        <p>Escolhe os municípios que queres analisar.</p>\n      </div>\n      <span class=\"count\">{{ selected.length }} selecionados</span>\n    </div>\n\n    <input\n      v-model=\"search\"\n      type=\"text\"\n      placeholder=\"Pesquisar concelho...\"\n      class=\"search\"\n    />\n\n    <div class=\"actions\">\n      <button class=\"secondary\" @click=\"selectVisible\">\n        Selecionar visíveis\n      </button>\n      <button class=\"secondary\" @click=\"selected = []\">\n        Limpar\n      </button>\n    </div>\n\n    <div class=\"city-list\">\n      <label\n        v-for=\"city in filteredCities\"\n        :key=\"city\"\n        class=\"city\"\n      >\n        <input\n          type=\"checkbox\"\n          :value=\"city\"\n          v-model=\"selected\"\n        />\n        <span>{{ city }}</span>\n      </label>\n\n      <p v-if=\"filteredCities.length === 0\" class=\"empty\">\n        Não foram encontrados concelhos.\n      </p>\n    </div>\n\n    <button class=\"apply\" @click=\"sendSelection\">\n      Aplicar filtros <span>→</span>\n    </button>\n  </div>\n</template>\n\n<script>\n  export default {\n  data() {\n    return {\n      cities: [],\n      selected: [],\n      search: \"\"\n    }\n  },\n\n  computed: {\n    filteredCities() {\n      const query = this.search.trim().toLocaleLowerCase(\"pt\");\n\n      return this.cities.filter(city =>\n        city.toLocaleLowerCase(\"pt\").includes(query)\n      );\n    }\n  },\n\n  watch: {\n    msg: {\n      immediate: true,\n      handler(msg) {\n        if (\n          msg &&\n          msg.topic === \"carregar_concelhos\" &&\n          Array.isArray(msg.payload)\n        ) {\n          this.cities = [...new Set(\n            msg.payload\n              .map(row => row.City ?? row.city)\n              .filter(Boolean)\n          )].sort((a, b) => a.localeCompare(b, \"pt\"));\n        }\n      }\n    }\n  },\n\n  methods: {\n    selectVisible() {\n      this.selected = [...new Set([\n        ...this.selected,\n        ...this.filteredCities\n      ])];\n    },\n\n    sendSelection() {\n      this.send({\n        topic: \"concelhos\",\n        payload: this.selected\n      });\n    }\n  }\n}\n</script>\n\n<style>\n  .selector {\n    box-sizing: border-box;\n    width: 100%;\n    height: 460px;\n    padding: 10px 8px;\n\n    display: flex;\n    flex-direction: column;\n    gap: 0;\n\n    overflow: hidden;\n    font-family: inherit;\n    color: var(--v-theme-on-surface, inherit);\n  }\n\n  .heading {\n    flex: 0 0 auto;\n    display: flex;\n    align-items: center;\n    justify-content: space-between;\n    gap: 10px;\n    margin-bottom: 12px;\n  }\n\n  .heading-text {\n    min-width: 0;\n  }\n\n  .heading h3 {\n    margin: 0;\n    font-size: 1.15rem;\n    font-weight: 650;\n  }\n\n  .heading p {\n    margin: 5px 0 0;\n    opacity: .7;\n    font-size: .85rem;\n  }\n\n  .count {\n    flex: 0 0 auto;\n    white-space: nowrap;\n    font-size: .75rem;\n    padding: 7px 10px;\n    border-radius: 20px;\n    background: rgba(128, 128, 128, .13);\n  }\n\n  .search {\n    box-sizing: border-box;\n    flex: 0 0 42px;\n    width: 100%;\n    min-width: 0;\n    padding: 0 13px;\n\n    border: 1px solid rgba(128, 128, 128, .35);\n    border-radius: 10px;\n    background: transparent;\n    color: inherit;\n    font: inherit;\n  }\n\n  .search:focus {\n    outline-offset: 2px;\n    border-color: rgb(var(--v-theme-primary, 25, 118, 210));\n  }\n\n  .actions {\n    flex: 0 0 auto;\n    display: flex;\n    gap: 10px;\n    margin: 12px 0;\n  }\n\n  .secondary {\n    flex: 1 1 0;\n    min-width: 0;\n    min-height: 42px;\n    padding: 9px 8px;\n\n    border: 1px solid rgba(128, 128, 128, .3);\n    border-radius: 8px;\n    background: transparent;\n    color: inherit;\n    cursor: pointer;\n    font: inherit;\n    font-size: .82rem;\n  }\n\n  .city-list {\n    flex: 1 1 auto;\n    min-height: 0;\n    width: 100%;\n    box-sizing: border-box;\n\n    overflow-y: auto;\n    overflow-x: hidden;\n\n    border: 1px solid rgba(128, 128, 128, .2);\n    border-radius: 10px;\n    padding: 4px 10px;\n\n    scrollbar-gutter: stable;\n  }\n\n  .city {\n    display: flex;\n    align-items: center;\n    gap: 10px;\n    min-height: 38px;\n    padding: 5px 4px;\n    box-sizing: border-box;\n\n    cursor: pointer;\n    border-bottom: 1px solid rgba(128, 128, 128, .1);\n  }\n\n  .city:last-child {\n    border-bottom: none;\n  }\n\n  .city input {\n    flex: 0 0 17px;\n    width: 17px;\n    height: 17px;\n    margin: 0;\n    accent-color: rgb(var(--v-theme-primary, 25, 118, 210));\n    cursor: pointer;\n  }\n\n  .city span {\n    min-width: 0;\n    overflow-wrap: anywhere;\n    font-size: .9rem;\n  }\n\n  .empty {\n    margin: 0;\n    opacity: .7;\n    font-size: .85rem;\n    text-align: center;\n    padding: 15px 0;\n  }\n\n  .apply {\n    flex: 0 0 auto;\n    display: flex;\n    justify-content: space-between;\n    align-items: center;\n    width: 100%;\n    min-height: 46px;\n    box-sizing: border-box;\n\n    margin-top: 12px;\n    padding: 10px 15px;\n\n    border: none;\n    border-radius: 10px;\n    background: rgb(var(--v-theme-primary, 25, 118, 210));\n    color: white;\n    font-weight: 600;\n    font-size: .9rem;\n    cursor: pointer;\n  }\n\n  .apply span {\n    font-size: 1.2rem;\n  }\n\n  @media (max-width: 420px) {\n    .selector {\n      padding-left: 4px;\n      padding-right: 4px;\n    }\n\n    .heading {\n      gap: 6px;\n    }\n\n    .count {\n      font-size: .7rem;\n      padding: 6px 7px;\n    }\n\n    .secondary {\n      font-size: .75rem;\n    }\n  }\n</style>",
+        "storeOutMessages": true,
+        "passthru": true,
+        "resendOnRefresh": true,
+        "templateScope": "local",
+        "className": "",
+        "x": 1200,
+        "y": 340,
+        "wires": [
+            [
+                "16f3705b0a32f6d3",
+                "52c8dd868727fae0"
+            ]
+        ]
+    },
+    {
+        "id": "16f3705b0a32f6d3",
+        "type": "function",
+        "z": "b2452d0af62d7491",
+        "name": "Filtrar selecionado",
+        "func": "const rows = flow.get(\"imobRows\") || [];\nconst selected = Array.isArray(msg.payload) ? msg.payload : [];\n\nconst filtered = rows.filter(r =>\n    selected.includes(r.City ?? r.city)\n);\n\nconst metrics = [\n    {\n        key: \"mean_price\",\n        fallback: \"Mean(Price)\",\n        title: \"Preço médio dos imóveis (€)\"\n    },\n    {\n        key: \"mean_price_per_m2\",\n        fallback: \"Mean(price_per_m2)\",\n        title: \"Preço médio por m² (€)\"\n    },\n    {\n        key: \"mean_age_of_property\",\n        fallback: \"Mean(Age_of_Property)\",\n        title: \"Idade média dos imóveis (anos)\"\n    },\n    {\n        key: \"difference_percent\",\n        fallback: \"difference_percent\",\n        title: \"Diferença percentual (%)\"\n    }\n];\n\nreturn metrics.map(metric => ({\n    topic: metric.title,\n    payload: filtered\n        .map(r => ({\n            city: r.City ?? r.city,\n            value: Number(r[metric.key] ?? r[metric.fallback])\n        }))\n        .filter(p => Number.isFinite(p.value)),\n    action: \"replace\"\n}));",
+        "outputs": 4,
+        "timeout": 0,
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [],
+        "x": 1530,
+        "y": 340,
+        "wires": [
+            [
+                "514538f0e1c429b3"
+            ],
+            [
+                "92fdad82562cec47"
+            ],
+            [
+                "3fb8b2a2df978572"
+            ],
+            [
+                "99ec0d1b82f71e68"
+            ]
+        ]
+    },
+    {
+        "id": "514538f0e1c429b3",
+        "type": "ui-chart",
+        "z": "b2452d0af62d7491",
+        "group": "758da356cb5bc739",
+        "name": "Preço Médio dos Imóveis",
+        "label": "Preço Médio dos Imóveis",
+        "order": 3,
+        "chartType": "bar",
+        "category": "city",
+        "categoryType": "property",
+        "xAxisLabel": "",
+        "xAxisProperty": "city",
+        "xAxisPropertyType": "property",
+        "xAxisType": "category",
+        "xAxisFormat": "",
+        "xAxisFormatType": "auto",
+        "xmin": "",
+        "xmax": "",
+        "yAxisLabel": "Preço Médio",
+        "yAxisProperty": "value",
+        "yAxisPropertyType": "property",
+        "ymin": "0",
+        "ymax": "",
+        "bins": 10,
+        "action": "replace",
+        "stackSeries": true,
+        "pointShape": "circle",
+        "pointRadius": 4,
+        "showLegend": true,
+        "removeOlder": 1,
+        "removeOlderUnit": "3600",
+        "removeOlderPoints": "",
+        "colors": [
+            "#0095ff",
+            "#ff0000",
+            "#ff7f0e",
+            "#2ca02c",
+            "#a347e1",
+            "#d62728",
+            "#ff9896",
+            "#9467bd",
+            "#c5b0d5"
+        ],
+        "textColor": [
+            "#666666"
+        ],
+        "textColorDefault": true,
+        "gridColor": [
+            "#e5e5e5"
+        ],
+        "gridColorDefault": true,
+        "width": "21",
+        "height": "11",
+        "className": "",
+        "interpolation": "linear",
+        "x": 2010,
+        "y": 260,
+        "wires": [
+            []
+        ]
+    },
+    {
+        "id": "99ec0d1b82f71e68",
+        "type": "ui-chart",
+        "z": "b2452d0af62d7491",
+        "group": "758da356cb5bc739",
+        "name": "Diferença %",
+        "label": "Diferença entre os dados e o INE em %",
+        "order": 6,
+        "chartType": "bar",
+        "category": "city",
+        "categoryType": "property",
+        "xAxisLabel": "",
+        "xAxisProperty": "city",
+        "xAxisPropertyType": "property",
+        "xAxisType": "category",
+        "xAxisFormat": "",
+        "xAxisFormatType": "auto",
+        "xmin": "",
+        "xmax": "",
+        "yAxisLabel": "Diferença %",
+        "yAxisProperty": "value",
+        "yAxisPropertyType": "property",
+        "ymin": "-100",
+        "ymax": "250",
+        "bins": 10,
+        "action": "append",
+        "stackSeries": true,
+        "pointShape": "circle",
+        "pointRadius": 4,
+        "showLegend": true,
+        "removeOlder": 1,
+        "removeOlderUnit": "3600",
+        "removeOlderPoints": "",
+        "colors": [
+            "#0095ff",
+            "#ff0000",
+            "#ff7f0e",
+            "#2ca02c",
+            "#a347e1",
+            "#d62728",
+            "#ff9896",
+            "#9467bd",
+            "#c5b0d5"
+        ],
+        "textColor": [
+            "#666666"
+        ],
+        "textColorDefault": true,
+        "gridColor": [
+            "#e5e5e5"
+        ],
+        "gridColorDefault": true,
+        "width": "21",
+        "height": "11",
+        "className": "",
+        "interpolation": "linear",
+        "x": 1970,
+        "y": 440,
+        "wires": [
+            []
+        ]
+    },
+    {
+        "id": "3fb8b2a2df978572",
+        "type": "ui-chart",
+        "z": "b2452d0af62d7491",
+        "group": "758da356cb5bc739",
+        "name": "Idade média dos imóveis",
+        "label": "Idade média dos imóveis",
+        "order": 5,
+        "chartType": "bar",
+        "category": "city",
+        "categoryType": "property",
+        "xAxisLabel": "",
+        "xAxisProperty": "city",
+        "xAxisPropertyType": "property",
+        "xAxisType": "category",
+        "xAxisFormat": "",
+        "xAxisFormatType": "auto",
+        "xmin": "",
+        "xmax": "",
+        "yAxisLabel": "Idade média dos imóveis",
+        "yAxisProperty": "value",
+        "yAxisPropertyType": "property",
+        "ymin": "0",
+        "ymax": "",
+        "bins": 10,
+        "action": "append",
+        "stackSeries": true,
+        "pointShape": "circle",
+        "pointRadius": 4,
+        "showLegend": true,
+        "removeOlder": 1,
+        "removeOlderUnit": "3600",
+        "removeOlderPoints": "",
+        "colors": [
+            "#0095ff",
+            "#ff0000",
+            "#ff7f0e",
+            "#2ca02c",
+            "#a347e1",
+            "#d62728",
+            "#ff9896",
+            "#9467bd",
+            "#c5b0d5"
+        ],
+        "textColor": [
+            "#666666"
+        ],
+        "textColorDefault": true,
+        "gridColor": [
+            "#e5e5e5"
+        ],
+        "gridColorDefault": true,
+        "width": "21",
+        "height": "11",
+        "className": "",
+        "interpolation": "linear",
+        "x": 2010,
+        "y": 380,
+        "wires": [
+            []
+        ]
+    },
+    {
+        "id": "92fdad82562cec47",
+        "type": "ui-chart",
+        "z": "b2452d0af62d7491",
+        "group": "758da356cb5bc739",
+        "name": "Preço médio por m/2",
+        "label": "Preço médio por m/2",
+        "order": 4,
+        "chartType": "bar",
+        "category": "city",
+        "categoryType": "property",
+        "xAxisLabel": "",
+        "xAxisProperty": "city",
+        "xAxisPropertyType": "property",
+        "xAxisType": "category",
+        "xAxisFormat": "",
+        "xAxisFormatType": "auto",
+        "xmin": "",
+        "xmax": "",
+        "yAxisLabel": "Preço medio por m/2",
+        "yAxisProperty": "value",
+        "yAxisPropertyType": "property",
+        "ymin": "0",
+        "ymax": "",
+        "bins": 10,
+        "action": "replace",
+        "stackSeries": true,
+        "pointShape": "circle",
+        "pointRadius": 4,
+        "showLegend": true,
+        "removeOlder": 1,
+        "removeOlderUnit": "3600",
+        "removeOlderPoints": "",
+        "colors": [
+            "#0095ff",
+            "#ff0000",
+            "#ff7f0e",
+            "#2ca02c",
+            "#a347e1",
+            "#d62728",
+            "#ff9896",
+            "#9467bd",
+            "#c5b0d5"
+        ],
+        "textColor": [
+            "#666666"
+        ],
+        "textColorDefault": true,
+        "gridColor": [
+            "#e5e5e5"
+        ],
+        "gridColorDefault": true,
+        "width": "21",
+        "height": "11",
+        "className": "",
+        "interpolation": "linear",
+        "x": 2000,
+        "y": 320,
+        "wires": [
+            []
+        ]
+    },
+    {
+        "id": "52c8dd868727fae0",
+        "type": "function",
+        "z": "b2452d0af62d7491",
+        "name": "Filtrar selecionado para cidade",
+        "func": "const concelhos = Array.isArray(msg.payload)\n    ? [...new Set(msg.payload.filter(c => typeof c === \"string\" && c.trim()))]\n    : [];\n\nif (concelhos.length === 0) {\n    msg.topic = `\n        SELECT City, Price, price_per_m2, Age_of_Property\n        FROM listings.tabela\n        WHERE 1 = 0\n    `;\n\n    msg.payload = [];\n    return msg;\n}\n\nconst placeholders = concelhos.map(() => \"?\").join(\",\");\n\nmsg.topic = `\n    SELECT\n        City,\n        Price,\n        price_per_m2,\n        Age_of_Property\n    FROM listings.tabela\n    WHERE City IN (${placeholders})\n`;\n\nmsg.payload = concelhos;\n\nreturn msg;",
+        "outputs": 1,
+        "timeout": 0,
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [],
+        "x": 1310,
+        "y": 600,
+        "wires": [
+            [
+                "3eca98d0dc025dc7"
+            ]
+        ]
+    },
+    {
+        "id": "3eca98d0dc025dc7",
+        "type": "mysql",
+        "z": "b2452d0af62d7491",
+        "mydb": "mysql_config",
+        "name": "",
+        "x": 1540,
+        "y": 660,
+        "wires": [
+            [
+                "a34f1453a0554980"
+            ]
+        ]
+    },
+    {
+        "id": "a34f1453a0554980",
+        "type": "function",
+        "z": "b2452d0af62d7491",
+        "name": "Mostrar todas as cidades",
+        "func": "const rows = Array.isArray(msg.payload)\n    ? msg.payload\n    : [];\n\nconst imoveis = rows.map(r => ({\n    City: r.City,\n    Price: Number(r.Price),\n    price_per_m2: r.price_per_m2 == null\n        ? null\n        : Number(r.price_per_m2),\n    Age_of_Property: r.Age_of_Property == null\n        ? null\n        : Number(r.Age_of_Property)\n}));\n\nconst pontos = imoveis\n    .filter(r =>\n        Number.isFinite(r.Price) &&\n        Number.isFinite(r.Age_of_Property)\n    )\n    .map(r => ({\n        series: r.City,\n        age: r.Age_of_Property,\n        price: r.Price\n    }));\n\nreturn [\n    {\n        payload: imoveis\n    },\n    {\n        payload: pontos,\n        action: \"replace\"\n    }\n];",
+        "outputs": 2,
+        "timeout": 0,
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [],
+        "x": 1790,
+        "y": 640,
+        "wires": [
+            [],
+            [
+                "f8ba2a711e713004"
+            ]
+        ]
+    },
+    {
+        "id": "f8ba2a711e713004",
+        "type": "ui-chart",
+        "z": "b2452d0af62d7491",
+        "group": "758da356cb5bc739",
+        "name": "",
+        "label": "chart",
+        "order": 2,
+        "chartType": "scatter",
+        "category": "series",
+        "categoryType": "property",
+        "xAxisLabel": "Idade do Imovel",
+        "xAxisProperty": "age",
+        "xAxisPropertyType": "property",
+        "xAxisType": "linear",
+        "xAxisFormat": "",
+        "xAxisFormatType": "auto",
+        "xmin": "",
+        "xmax": "",
+        "yAxisLabel": "Preço anunciado",
+        "yAxisProperty": "price",
+        "yAxisPropertyType": "property",
+        "ymin": "",
+        "ymax": "",
+        "bins": 10,
+        "action": "append",
+        "stackSeries": false,
+        "pointShape": "circle",
+        "pointRadius": 4,
+        "showLegend": true,
+        "removeOlder": 1,
+        "removeOlderUnit": "3600",
+        "removeOlderPoints": "",
+        "colors": [
+            "#0095ff",
+            "#ff0000",
+            "#ff7f0e",
+            "#2ca02c",
+            "#a347e1",
+            "#d62728",
+            "#ff9896",
+            "#9467bd",
+            "#c5b0d5"
+        ],
+        "textColor": [
+            "#666666"
+        ],
+        "textColorDefault": true,
+        "gridColor": [
+            "#e5e5e5"
+        ],
+        "gridColorDefault": true,
+        "width": "11",
+        "height": "8",
+        "className": "",
+        "interpolation": "linear",
+        "x": 2010,
+        "y": 680,
+        "wires": [
+            []
+        ]
+    },
+    {
+        "id": "mysql_config",
+        "type": "MySQLdatabase",
+        "name": "A MINHA LIGAÇÃO MYSQL",
+        "host": "localhost",
+        "port": "3306",
+        "db": "listings",
+        "tz": "",
+        "charset": "UTF8"
+    },
+    {
+        "id": "758da356cb5bc739",
+        "type": "ui-group",
+        "name": "Dashboard Imobiliário",
+        "page": "adda10864d7323b5",
+        "width": "21",
+        "height": 1,
+        "order": 1,
+        "showTitle": true,
+        "className": "",
+        "visible": "true",
+        "disabled": "false",
+        "groupType": "default",
+        "tab": ""
+    },
+    {
+        "id": "adda10864d7323b5",
+        "type": "ui-page",
+        "name": "Page 3",
+        "ui": "977a837f75e3f121",
+        "path": "/page3",
+        "icon": "home",
+        "layout": "grid",
+        "theme": "2f42967737fabfab",
+        "breakpoints": [
+            {
+                "name": "Default",
+                "px": "0",
+                "cols": "3"
+            },
+            {
+                "name": "Tablet",
+                "px": "576",
+                "cols": "6"
+            },
+            {
+                "name": "Small Desktop",
+                "px": "768",
+                "cols": "9"
+            },
+            {
+                "name": "Desktop",
+                "px": "1024",
+                "cols": "20"
+            }
+        ],
+        "tabs": [],
+        "order": 2,
+        "className": "",
+        "visible": true,
+        "disabled": false
+    },
+    {
+        "id": "977a837f75e3f121",
+        "type": "ui-base",
+        "name": "My Dashboard",
+        "path": "/dashboard",
+        "appIcon": "",
+        "includeClientData": true,
+        "acceptsClientConfig": [
+            "ui-notification",
+            "ui-control"
+        ],
+        "showPathInSidebar": false,
+        "headerContent": "page",
+        "navigationStyle": "default",
+        "titleBarStyle": "default",
+        "showReconnectNotification": true,
+        "notificationDisplayTime": 1,
+        "showDisconnectNotification": true,
+        "allowInstall": false
+    },
+    {
+        "id": "2f42967737fabfab",
+        "type": "ui-theme",
+        "name": "Default Theme",
+        "colors": {
+            "surface": "#18191b",
+            "primary": "#0d74ce",
+            "bgPage": "#111113",
+            "groupBg": "#212225",
+            "groupOutline": "#363a3f"
+        },
+        "sizes": {
+            "density": "default",
+            "pagePadding": "12px",
+            "groupGap": "12px",
+            "groupBorderRadius": "4px",
+            "widgetGap": "12px"
+        }
+    },
+    {
+        "id": "d3badc0994a58bef",
+        "type": "global-config",
+        "env": [],
+        "modules": {
+            "node-red-node-mysql": "3.0.3",
+            "@flowfuse/node-red-dashboard": "1.33.0"
+        }
+    }
+]
